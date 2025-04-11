@@ -1,3 +1,10 @@
 /venv
 .idea
-parser.py
+SESSION
+
+*.txt
+!req.txt
+
+*.csv
+
+*.png
