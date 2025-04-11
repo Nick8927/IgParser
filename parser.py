@@ -5,6 +5,7 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
+from bs4 import BeautifulSoup
 import time
 import csv
 import os
@@ -30,6 +31,7 @@ def scroll_followers(driver, target_username, scroll_limit=100):
     driver.get(f"https://www.instagram.com/{target_username}/")
     time.sleep(5)
 
+    # Клик по кнопке "подписчики"
     try:
         followers_button = WebDriverWait(driver, 30).until(
             EC.element_to_be_clickable((By.XPATH, "//a[contains(@href, '/followers/')]"))
@@ -37,51 +39,32 @@ def scroll_followers(driver, target_username, scroll_limit=100):
         followers_button.click()
     except Exception as e:
         print("⚠️ Не удалось найти кнопку подписчиков.")
-        print(f"Ошибка: {e}")
+        print("Ошибка:", e)
         return []
 
-    time.sleep(3)
+    input("🔁 Прокрути список подписчиков вручную до конца, затем нажми Enter...")
 
-    # Пытаемся дождаться контейнер
-    try:
-        scroll_box = WebDriverWait(driver, 20).until(
-            EC.presence_of_element_located((By.XPATH, "//div[@role='dialog']//div[@class='_aano']"))
-        )
-    except Exception as e:
-        print("⚠️ Контейнер не появился автоматически. Проверь, что модалка открыта.")
-        input("🔎 Открой список подписчиков вручную, если он не открылся, и нажми Enter...")
-        with open("debug/page_debug_final.html", "w", encoding="utf-8") as f:
-            f.write(driver.page_source)
-        driver.save_screenshot("debug/screenshot_final.png")
+    # Сохраняем HTML (для отладки и парсинга)
+    html = driver.page_source
+    os.makedirs("debug", exist_ok=True)
+    with open("debug/followers_final.html", "w", encoding="utf-8") as f:
+        f.write(html)
 
-        try:
-            scroll_box = driver.find_element(By.XPATH, "//div[@role='dialog']//div[@class='_aano']")
-        except:
-            print("❌ Не удалось найти контейнер даже вручную.")
-            return []
-
-    # Скроллим
-    last_height, height = 0, 1
-    scrolls = 0
-    while scrolls < scroll_limit and last_height != height:
-        last_height = height
-        driver.execute_script("arguments[0].scrollTop = arguments[0].scrollHeight", scroll_box)
-        time.sleep(1.5)
-        height = driver.execute_script("return arguments[0].scrollTop", scroll_box)
-        scrolls += 1
-        print(f"↧ Прокручено: {scrolls}")
-
-    # Сбор логинов
-    followers = scroll_box.find_elements(By.XPATH, ".//a[contains(@href, '/') and not(contains(@href, 'following'))]")
+    # Парсим логины из HTML
+    soup = BeautifulSoup(html, "html.parser")
     usernames = set()
-    for el in followers:
-        href = el.get_attribute("href")
-        if href and href.count("/") == 4:
-            usernames.add(href.split("/")[-2])
+
+    for a in soup.find_all("a", href=True):
+        href = a["href"]
+        # Оставляем только ссылки вида /username/
+        if href.count("/") == 2 and href.startswith("/") and not any(
+                x in href for x in ["explore", "accounts", "reels", "p/", "stories", "direct"]):
+            username = href.strip("/").split("/")[0]
+            if username and username != target_username:
+                usernames.add(username)
 
     print(f"[✓] Собрано логинов: {len(usernames)}")
     return list(usernames)
-
 
 
 def save_to_csv(usernames, filename="followers_list.csv"):
