@@ -26,12 +26,11 @@ def login_phase(driver):
     input("🔑 После входа нажми Enter, чтобы продолжить...")
 
 
-def scroll_followers(driver, target_username, scroll_limit=100):
+def scroll_followers(driver, target_username, scroll_limit=50):
     print(f"[~] Открываю профиль {target_username}...")
     driver.get(f"https://www.instagram.com/{target_username}/")
     time.sleep(5)
 
-    # Клик по кнопке "подписчики"
     try:
         followers_button = WebDriverWait(driver, 30).until(
             EC.element_to_be_clickable((By.XPATH, "//a[contains(@href, '/followers/')]"))
@@ -44,19 +43,16 @@ def scroll_followers(driver, target_username, scroll_limit=100):
 
     input("🔁 Прокрути список подписчиков вручную до конца, затем нажми Enter...")
 
-    # Сохраняем HTML (для отладки и парсинга)
     html = driver.page_source
     os.makedirs("debug", exist_ok=True)
     with open("debug/followers_final.html", "w", encoding="utf-8") as f:
         f.write(html)
 
-    # Парсим логины из HTML
     soup = BeautifulSoup(html, "html.parser")
     usernames = set()
 
     for a in soup.find_all("a", href=True):
         href = a["href"]
-        # Оставляем только ссылки вида /username/
         if href.count("/") == 2 and href.startswith("/") and not any(
                 x in href for x in ["explore", "accounts", "reels", "p/", "stories", "direct"]):
             username = href.strip("/").split("/")[0]
